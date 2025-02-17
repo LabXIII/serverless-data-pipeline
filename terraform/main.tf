@@ -115,3 +115,15 @@ resource "aws_cloudwatch_metric_alarm" "lambda_error_alarm" {
   }
   alarm_actions = [aws_sns_topic.alerts.arn]  # Assuming you've set up an SNS topic for alerts
 }
+
+# AWS KMS Key for data encryption
+resource "aws_kms_key" "data_key" {
+  description             = "KMS key for encrypting data in S3 and DynamoDB"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  tags = {
+    Name        = "${var.project_name}-data-key"
+    Environment = terraform.workspace
+  }
+}
