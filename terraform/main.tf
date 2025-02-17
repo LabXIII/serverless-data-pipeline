@@ -38,3 +38,80 @@ resource "aws_lambda_function" "data_processor" {
   }
 }
 
+resource "aws_cloudwatch_dashboard" "serverless_dashboard" {
+  dashboard_name = "${var.project_name}_dashboard"
+  dashboard_body = <<EOF
+  {
+    "widgets": [
+      {
+        "type": "metric",
+        "x": 0,
+        "y": 0,
+        "width": 6,
+        "height": 6,
+        "properties": {
+          "metrics": [
+            [ "AWS/Lambda", "Invocations", "FunctionName", "${aws_lambda_function.data_processor.function_name}" ],
+            [ ".", "Errors", ".", "." ],
+            [ ".", "Duration", ".", ".", { "stat": "Average" } ]
+          ],
+          "period": 300,
+          "stat": "Sum",
+          "region": "${var.aws_region}",
+          "title": "Lambda Metrics"
+        }
+      },
+      {
+        "type": "metric",
+        "x": 6,
+        "y": 0,
+        "width": 6,
+        "height": 6,
+        "properties": {
+          "metrics": [
+            [ "AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${aws_dynamodb_table.data_table.name}" ],
+            [ ".", "ConsumedWriteCapacityUnits", ".", "." ]
+          ],
+          "period": 300,
+          "stat": "Sum",
+          "region": "${var.aws_region}",
+          "title": "DynamoDB Metrics"
+        }
+      },
+      {
+        "type": "metric",
+        "x": 12,
+        "y": 0,
+        "width": 6,
+        "height": 6,
+        "properties": {
+          "metrics": [
+            [ "AWS/S3", "NumberOfObjects", "BucketName", "${aws_s3_bucket.raw_data_bucket.bucket}" ],
+            [ ".", "BucketSizeBytes", ".", ".", { "stat": "Average" } ]
+          ],
+          "period": 300,
+          "stat": "Sum",
+          "region": "${var.aws_region}",
+          "title": "S3 Metrics"
+        }
+      }
+    ]
+  }
+  EOF
+}
+
+resource "aws_cloudwatch_metric_alarm" "lambda_error_alarm" {
+  alarm_name          = "${var.project_name}_lambda_errors"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  alarm_description   = "Alarm if Lambda function has errors"
+  dimensions = {
+    FunctionName = aws_lambda_function.data_processor.function_name
+  }
+  alarm_actions = [aws_sns_topic.alerts.arn]  # Assuming you've set up an SNS topic for alerts
+}
